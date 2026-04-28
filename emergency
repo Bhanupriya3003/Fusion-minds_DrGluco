@@ -1,0 +1,441 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import * as Icons from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const THRESHOLDS = {
+  CRITICAL_LOW: 54,
+  LOW: 70,
+  HIGH: 180,
+  CRITICAL_HIGH: 250,
+};
+
+function classifyBloodSugar(value) {
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+  if (num < THRESHOLDS.CRITICAL_LOW) return { level: 'DANGEROUS LOW', color: 'red', icon: 'AlertOctagon', bg: 'bg-red-500/20', border: 'border-red-500/60', text: 'text-red-300', badge: 'bg-red-500' };
+  if (num < THRESHOLDS.LOW) return { level: 'CAUTION LOW', color: 'amber', icon: 'AlertTriangle', bg: 'bg-amber-500/20', border: 'border-amber-500/60', text: 'text-amber-300', badge: 'bg-amber-500' };
+  if (num <= THRESHOLDS.HIGH) return { level: 'NORMAL', color: 'green', icon: 'CheckCircle', bg: 'bg-emerald-500/20', border: 'border-emerald-500/60', text: 'text-emerald-300', badge: 'bg-emerald-500' };
+  if (num <= THRESHOLDS.CRITICAL_HIGH) return { level: 'CAUTION HIGH', color: 'amber', icon: 'AlertTriangle', bg: 'bg-amber-500/20', border: 'border-amber-500/60', text: 'text-amber-300', badge: 'bg-amber-500' };
+  return { level: 'DANGEROUS HIGH', color: 'red', icon: 'AlertOctagon', bg: 'bg-red-500/20', border: 'border-red-500/60', text: 'text-red-300', badge: 'bg-red-500' };
+}
+
+function ContactCard({ contact, onNotify, alertStatus }) {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleNotify = useCallback(async () => {
+    setSending(true);
+    await new Promise((res) => setTimeout(res, 1400));
+    setSending(false);
+    setSent(true);
+    onNotify(contact);
+    setTimeout(() => setSent(false), 4000);
+  }, [contact, onNotify]);
+
+  const PhoneIcon = Icons?.Phone || Icons.HelpCircle;
+  const MailIcon = Icons?.Mail || Icons.HelpCircle;
+  const CheckIcon = Icons?.Check || Icons.HelpCircle;
+  const LoaderIcon = Icons?.Loader2 || Icons.HelpCircle;
+  const BellIcon = Icons?.BellRing || Icons.HelpCircle;
+
+  return (
+    <div className="flex flex-col gap-3 p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
+          <span className="text-indigo-300 text-sm font-semibold font-inter">
+            {contact.name?.charAt(0)?.toUpperCase() || 'C'}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-semibold text-sm font-inter truncate">{contact.name}</p>
+          <p className="text-white/50 text-xs font-inter">{contact.relation}</p>
+        </div>
+        {alertStatus && (
+          <span className={`text-xs font-semibold px-2 py-1 rounded-full font-inter ${alertStatus.badge} text-white shrink-0`}>
+            {alertStatus.level}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        {contact.phone && (
+          <div className="flex items-center gap-2">
+            <PhoneIcon size={13} className="text-white/40 shrink-0" />
+            <span className="text-white/60 text-xs font-inter">{contact.phone}</span>
+          </div>
+        )}
+        {contact.email && (
+          <div className="flex items-center gap-2">
+            <MailIcon size={13} className="text-white/40 shrink-0" />
+            <span className="text-white/60 text-xs font-inter">{contact.email}</span>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={handleNotify}
+        disabled={sending || sent}
+        aria-label={`Notify ${contact.name}`}
+        className="relative overflow-hidden w-full py-2.5 px-4 rounded-xl font-semibold text-sm font-inter transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed group
+          bg-red-600 hover:bg-red-500 text-white border border-red-500/50 shadow-lg shadow-red-900/30"
+      >
+        <span className="absolute inset-0 w-0 group-hover:w-full transition-all duration-500 ease-out bg-white/10 rounded-xl" />
+        <span className="relative flex items-center justify-center gap-2">
+          {sending ? (
+            <><LoaderIcon size={14} className="animate-spin" /> Sending Alert...</>
+          ) : sent ? (
+            <><CheckIcon size={14} /> Alert Sent!</>
+          ) : (
+            <><BellIcon size={14} /> Notify Now</>
+          )}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function EmergencyAlertSection({ bloodSugar, emergencyContacts, onAlert }) {
+  const [inputValue, setInputValue] = useState('');
+  const [activeValue, setActiveValue] = useState(bloodSugar ?? 145);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isSticky, setIsSticky] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [inputError, setInputError] = useState('');
+  const sectionRef = useRef(null);
+
+  const alertStatus = classifyBloodSugar(activeValue);
+  const isDangerous = alertStatus?.color === 'red';
+
+  const defaultContacts = [
+    { id: 1, name: 'Dr. Sarah Müller', relation: 'Endocrinologist', phone: '+1 (555) 012-3456', email: 'dr.muller@clinic.com' },
+    { id: 2, name: 'James Carter', relation: 'Emergency Contact', phone: '+1 (555) 987-6543', email: 'james.carter@email.com' },
+  ];
+
+  const contacts = emergencyContacts?.length ? emergencyContacts : defaultContacts;
+
+  useEffect(() => {
+    if (bloodSugar !== undefined && bloodSugar !== null) {
+      setActiveValue(bloodSugar);
+    }
+  }, [bloodSugar]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!sectionRef.current) return;
+      const rect = sectionRef.current.getBoundingClientRect();
+      setIsSticky(rect.top <= 16 && rect.bottom > 80);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleTestValue = useCallback(() => {
+    const num = parseFloat(inputValue);
+    if (isNaN(num) || num < 0 || num > 600) {
+      setInputError('Enter a valid blood sugar value between 0 and 600 mg/dL.');
+      return;
+    }
+    setInputError('');
+    setActiveValue(num);
+    setInputValue('');
+  }, [inputValue]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') handleTestValue();
+  }, [handleTestValue]);
+
+  const handleNotify = useCallback((contact) => {
+    const notification = { id: Date.now(), contact, value: activeValue, time: new Date().toLocaleTimeString() };
+    setNotifications((prev) => [notification, ...prev].slice(0, 5));
+    if (typeof onAlert === 'function') onAlert({ contact, bloodSugar: activeValue, status: alertStatus });
+  }, [activeValue, alertStatus, onAlert]);
+
+  const AlertIcon = Icons?.[alertStatus?.icon] || Icons.HelpCircle;
+  const ChevronDown = Icons?.ChevronDown || Icons.HelpCircle;
+  const Activity = Icons?.Activity || Icons.HelpCircle;
+  const Droplets = Icons?.Droplets || Icons.HelpCircle;
+  const ClockIcon = Icons?.Clock || Icons.HelpCircle;
+  const XCircle = Icons?.XCircle || Icons.HelpCircle;
+
+  return (
+    <section
+      id="emergency"
+      ref={sectionRef}
+      aria-label="Emergency Alert Section"
+      className="w-full max-w-screen-xl mx-auto px-4 md:px-8"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: '-60px' }}
+        transition={{ duration: 0.55, ease: 'easeOut' }}
+        className={`relative rounded-2xl overflow-hidden border transition-all duration-500
+          ${
+            isDangerous
+              ? 'border-red-500/40 shadow-2xl shadow-red-900/30'
+              : 'border-white/10 shadow-2xl shadow-indigo-900/20'
+          }
+          bg-gradient-to-br from-[#1a1d3a]/90 via-[#1e2240]/95 to-[#161828]/90
+          backdrop-blur-xl
+        `}
+      >
+        {isDangerous && (
+          <motion.div
+            animate={{ opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute inset-0 rounded-2xl border-2 border-red-500/30 pointer-events-none"
+          />
+        )}
+
+        <div className="absolute inset-0 opacity-5 pointer-events-none"
+          style={{}}
+        >
+          <div className="absolute top-0 right-0 w-72 h-72 rounded-full bg-indigo-600 blur-3xl" />
+          <div className="absolute bottom-0 left-0 w-64 h-64 rounded-full bg-red-600 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 p-6 md:p-10">
+
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6 mb-8">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${alertStatus?.bg || 'bg-indigo-500/20'} border ${alertStatus?.border || 'border-indigo-500/30'}`}>
+                <AlertIcon size={22} className={alertStatus?.text || 'text-indigo-300'} />
+              </div>
+              <div>
+                <p className="text-white/50 text-xs font-inter uppercase tracking-widest mb-0.5">Emergency Monitor</p>
+                <h2 className="text-white font-bold text-xl md:text-2xl font-inter uppercase tracking-wide">
+                  Blood Sugar Alert
+                </h2>
+              </div>
+            </div>
+
+            {alertStatus && (
+              <motion.div
+                key={alertStatus.level}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm font-inter text-white ${alertStatus.badge} self-start shadow-lg`}
+              >
+                <AlertIcon size={14} />
+                {alertStatus.level}
+              </motion.div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+
+            <div className={`flex flex-col items-center justify-center p-8 rounded-2xl border ${alertStatus?.border || 'border-white/10'} ${alertStatus?.bg || 'bg-white/5'} gap-3`}>
+              <div className="flex items-center gap-2 mb-1">
+                <Droplets size={16} className="text-white/40" />
+                <span className="text-white/50 text-xs font-inter uppercase tracking-widest">Current Reading</span>
+              </div>
+              <motion.p
+                key={activeValue}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.4, ease: 'backOut' }}
+                className={`text-6xl md:text-7xl font-bold font-inter ${alertStatus?.text || 'text-white'}`}
+              >
+                {activeValue}
+              </motion.p>
+              <span className="text-white/40 text-sm font-inter">mg/dL</span>
+
+              <div className="w-full mt-2">
+                <div className="flex justify-between text-xs text-white/30 font-inter mb-1.5">
+                  <span>0</span>
+                  <span>Danger Low</span>
+                  <span>Normal</span>
+                  <span>Danger High</span>
+                  <span>600</span>
+                </div>
+                <div className="relative h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div className="absolute inset-y-0 left-0 w-[9%] bg-red-500/60 rounded-l-full" />
+                  <div className="absolute inset-y-0 left-[9%] w-[3%] bg-amber-400/60" />
+                  <div className="absolute inset-y-0 left-[12%] w-[21%] bg-emerald-500/60" />
+                  <div className="absolute inset-y-0 left-[33%] w-[9%] bg-amber-400/60" />
+                  <div className="absolute inset-y-0 left-[42%] right-0 bg-red-500/60 rounded-r-full" />
+                  <motion.div
+                    key={activeValue}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.4 }}
+                    className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-400 shadow-lg shadow-indigo-500/50"
+                    style={{}}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="p-6 rounded-2xl bg-white/5 border border-white/10">
+                <label className="block text-white/60 text-xs font-inter uppercase tracking-widest mb-3">
+                  Test New Value
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    value={inputValue}
+                    onChange={(e) => { setInputValue(e.target.value); setInputError(''); }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="e.g. 85"
+                    min="0"
+                    max="600"
+                    aria-label="Enter blood sugar value"
+                    className="flex-1 bg-white/8 border border-white/15 rounded-xl px-4 py-3 text-white font-inter text-sm placeholder-white/30 focus:outline-none focus:border-indigo-400/60 focus:bg-white/10 transition-all duration-200"
+                  />
+                  <button
+                    onClick={handleTestValue}
+                    aria-label="Apply blood sugar test value"
+                    className="px-5 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm font-inter transition-all duration-200 border border-indigo-500/50 shadow-lg shadow-indigo-900/30 active:scale-95"
+                  >
+                    Test
+                  </button>
+                </div>
+                <AnimatePresence>
+                  {inputError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className="text-red-400 text-xs font-inter mt-2"
+                    >
+                      {inputError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'Danger Low', range: '< 54', badge: 'bg-red-500', icon: 'AlertOctagon' },
+                  { label: 'Caution', range: '54–180', badge: 'bg-amber-500', icon: 'AlertTriangle' },
+                  { label: 'Normal', range: '70–180', badge: 'bg-emerald-500', icon: 'CheckCircle' },
+                ].map((item) => {
+                  const ItemIcon = Icons?.[item.icon] || Icons.HelpCircle;
+                  return (
+                    <div key={item.label} className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white/5 border border-white/8">
+                      <span className={`w-7 h-7 flex items-center justify-center rounded-full ${item.badge} shadow-sm`}>
+                        <ItemIcon size={13} className="text-white" />
+                      </span>
+                      <span className="text-white/70 text-xs font-inter text-center leading-tight">{item.label}</span>
+                      <span className="text-white/40 text-xs font-inter">{item.range}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Activity size={16} className="text-white/50" />
+                <h3 className="text-white/80 font-semibold text-sm font-inter uppercase tracking-widest">Emergency Contacts</h3>
+              </div>
+              <span className="text-white/40 text-xs font-inter">{contacts.length} contact{contacts.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {contacts.map((contact) => (
+                <ContactCard
+                  key={contact.id || contact.name}
+                  contact={contact}
+                  onNotify={handleNotify}
+                  alertStatus={alertStatus}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-white/8 pt-4">
+            <button
+              onClick={() => setIsExpanded((v) => !v)}
+              aria-expanded={isExpanded}
+              aria-controls="emergency-extra-info"
+              className="flex items-center gap-2 text-white/50 hover:text-white/80 text-sm font-inter transition-colors duration-200 group"
+            >
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}
+              />
+              {isExpanded ? 'Hide additional info' : 'Show additional guidelines'}
+            </button>
+
+            <AnimatePresence initial={false}>
+              {isExpanded && (
+                <motion.div
+                  id="emergency-extra-info"
+                  key="extra-info"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[
+                      { icon: 'AlertTriangle', title: 'If Blood Sugar < 70 mg/dL', tips: ['Consume 15g fast-acting carbs immediately', 'Re-check after 15 minutes', 'Contact your doctor if not improving'] },
+                      { icon: 'TrendingUp', title: 'If Blood Sugar > 250 mg/dL', tips: ['Check for ketones if available', 'Stay hydrated — drink water', 'Seek emergency care if symptomatic'] },
+                    ].map((guide) => {
+                      const GuideIcon = Icons?.[guide.icon] || Icons.HelpCircle;
+                      return (
+                        <div key={guide.title} className="p-5 rounded-xl bg-white/5 border border-white/8">
+                          <div className="flex items-center gap-2 mb-3">
+                            <GuideIcon size={15} className="text-amber-400" />
+                            <span className="text-white/80 font-semibold text-sm font-inter">{guide.title}</span>
+                          </div>
+                          <ul className="space-y-1.5">
+                            {guide.tips.map((tip) => (
+                              <li key={tip} className="flex items-start gap-2">
+                                <span className="w-1 h-1 rounded-full bg-white/30 mt-2 shrink-0" />
+                                <span className="text-white/50 text-xs font-inter leading-relaxed">{tip}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <AnimatePresence>
+            {notifications.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                className="mt-6 border-t border-white/8 pt-5"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <ClockIcon size={13} className="text-white/40" />
+                  <span className="text-white/40 text-xs font-inter uppercase tracking-widest">Recent Alerts Sent</span>
+                </div>
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <motion.div
+                      key={n.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-white/5 border border-white/8"
+                    >
+                      <span className="text-white/60 text-xs font-inter">
+                        Notified <span className="text-white/80 font-semibold">{n.contact.name}</span> — {n.value} mg/dL
+                      </span>
+                      <span className="text-white/30 text-xs font-inter">{n.time}</span>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+        </div>
+      </motion.div>
+    </section>
+  );
+}
+
+export default EmergencyAlertSection;

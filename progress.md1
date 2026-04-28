@@ -1,0 +1,74 @@
+import { motion } from 'framer-motion';
+import * as Icons from 'lucide-react';
+
+function Header({ logo_url, nav_links }) {
+  const resolvedNavLinks = nav_links && nav_links.length > 0
+    ? nav_links
+    : [{ label: 'Emergency Alert', route: '#emergency' }];
+
+  return (
+    <motion.header
+      initial={{ opacity: 0, y: -16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className="fixed top-0 left-0 right-0 z-50 w-full px-8 py-5 shadow-md"
+      style={undefined}
+    >
+      <div
+        className="absolute inset-0 bg-white/10 backdrop-blur-xl border-b border-white/20"
+        aria-hidden="true"
+      />
+
+      <div className="relative z-10 max-w-screen-xl mx-auto flex items-center justify-between gap-8">
+
+        <a
+          href="/"
+          className="flex items-center gap-2.5 no-underline group"
+          aria-label="insulin-scanner-works home"
+        >
+          <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-violet-600/90 shadow-lg shadow-violet-500/30">
+            <Icons.Activity className="w-5 h-5 text-white" strokeWidth={2.2} />
+          </span>
+          <span className="text-2xl font-bold font-inter tracking-tight text-white leading-none">
+            insulin<span className="text-violet-400">scan</span>
+          </span>
+        </a>
+
+        <nav
+          className="flex items-center gap-2"
+          aria-label="Primary navigation"
+        >
+          {resolvedNavLinks.map((link) => (
+            <motion.a
+              key={link.label}
+              href={link.route}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="
+                inline-flex items-center gap-2
+                px-5 py-2.5
+                rounded-2xl
+                text-sm font-semibold font-inter tracking-wide
+                text-white
+                bg-red-500/80
+                hover:bg-red-500
+                border border-red-400/40
+                shadow-md shadow-red-500/20
+                hover:shadow-red-500/40
+                transition-all duration-200
+                focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-transparent
+              "
+              aria-label={`Navigate to ${link.label}`}
+            >
+              <Icons.AlertTriangle className="w-4 h-4 text-white" strokeWidth={2.4} />
+              {link.label}
+            </motion.a>
+          ))}
+        </nav>
+      </div>
+    </motion.header>
+  );
+}
+
+export default Header;
